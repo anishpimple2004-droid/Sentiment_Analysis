@@ -1,0 +1,320 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Sentiment Analysis</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/css/bootstrap.min.css"/>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <!-- TinyMCE CDN -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/tinymce/6.4.2/tinymce.min.js"></script>
+  <style>
+    body {
+      background-color: #111827;
+      color: #f8f9fa;
+      padding: 60px 0;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    }
+    .container { max-width: 1200px; }
+    h1 {
+      font-size: 2.5rem;
+      font-weight: 700;
+      text-align: center;
+      background: linear-gradient(to right, #a855f7, #ec4899);
+      -webkit-background-clip: text;
+      color: transparent;
+      margin-bottom: 2rem;
+    }
+    .upload-area {
+      border: 2px dashed #4b5563;
+      border-radius: 8px;
+      padding: 20px;
+      text-align: center;
+      margin-bottom: 20px;
+      cursor: pointer;
+      transition: all 0.3s ease;
+    }
+    .upload-area:hover { border-color: #a855f7; }
+    .upload-icon {
+      font-size: 48px;
+      color: #9ca3af;
+      margin-bottom: 10px;
+    }
+    .extract-btn {
+      display: none;
+      margin-top: 10px;
+    }
+    .spinner-border { display: none; margin-right: 8px; }
+    .form-control, .form-select {
+      background-color: #374151;
+      color: #f8f9fa;
+      border: 1px solid #4b5563;
+      border-radius: 8px;
+    }
+    .btn-primary {
+      background: linear-gradient(to right, #a855f7, #ec4899);
+      border: none;
+      border-radius: 8px;
+      font-weight: 600;
+    }
+    .btn-secondary {
+      background: linear-gradient(to right, #6366f1, #3b82f6);
+      border: none;
+      border-radius: 8px;
+      font-weight: 600;
+    }
+    .result-card { display: none; margin-top: 20px; }
+    .confidence-fill {
+      height: 12px;
+      border-radius: 6px;
+      transition: width 1s ease-in-out;
+    }
+    .positive { background: linear-gradient(to right, #10b981, #059669); }
+    .neutral { background: linear-gradient(to right, #f59e0b, #d97706); }
+    .negative { background: linear-gradient(to right, #ef4444, #b91c1c); }
+    /* TinyMCE customization */
+    .tox-tinymce {
+      border-radius: 8px !important;
+      border: 1px solid #4b5563 !important;
+    }
+    .rich-text-container {
+      margin-bottom: 20px;
+    }
+    /* Override TinyMCE UI to match dark theme */
+    .tox .tox-toolbar, .tox .tox-toolbar__overflow, .tox .tox-toolbar__primary {
+      background-color: #374151 !important;
+    }
+    .tox .tox-tbtn {
+      color: #f8f9fa !important;
+    }
+    .tox .tox-edit-area__iframe {
+      background-color: #374151 !important;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Sentiment Analysis</h1>
+    <div class="row justify-content-center">
+      <div class="col-md-10 col-lg-8">
+        <div class="card p-4 bg-dark text-light">
+          <form method="POST" enctype="multipart/form-data" id="analysisForm">
+            <!-- Image Upload 
+            <div class="upload-area" onclick="document.getElementById('imageUpload').click()">
+              <div class="upload-icon">📷</div>
+              <p class="upload-text">Upload an Image</p>
+              <input type="file" id="imageUpload" name="image" accept="image/*" style="display: none;" onchange="handleImageUpload(this)">
+            </div>
+            <img id="imagePreview" style="display: none; max-width: 100%; border-radius: 8px;" />
+            <div class="d-grid">
+              <button type="button" id="extractBtn" class="btn btn-secondary extract-btn" onclick="extractText()">
+                <span class="spinner-border spinner-border-sm" id="extractSpinner"></span>
+                Extract Text from Image
+              </button>
+            </div>
+
+            <!-- PDF Upload 
+            <div class="upload-area mt-4" onclick="document.getElementById('pdfUpload').click()">
+              <div class="upload-icon">📄</div>
+              <p class="upload-text">Upload a PDF</p>
+              <input type="file" id="pdfUpload" name="pdf" accept="application/pdf" style="display: none;" onchange="handlePdfUpload(this)">
+            </div>
+            <div class="d-grid">
+              <button type="button" id="extractPdfBtn" class="btn btn-secondary extract-btn mt-2" onclick="triggerPdfExtraction()">
+                <span class="spinner-border spinner-border-sm" id="extractPdfSpinner" role="status" aria-hidden="true"></span>
+                Extract Text from PDF
+              </button>
+            </div>
+
+            <!-- Rich Text Editor -->
+            <div class="mt-4">
+              <label for="rich-editor" class="form-label">Enter text to analyze:</label>
+              <div class="rich-text-container">
+                <textarea id="rich-editor" name="rich-editor">{{ request.form.get('text', '') }}</textarea>
+              </div>
+              <!-- Hidden field to store the HTML content -->
+              <input type="hidden" id="text" name="text" value="{{ request.form.get('text', '') }}">
+            </div>
+
+            <!-- Model Select -->
+            <div class="my-3">
+              <label for="model" class="form-label">Select model:</label>
+              <select class="form-select" id="model" name="model">
+                <option value="Terminal" {% if request.form.get('model') == 'Terminal' %}selected{% endif %}>Roberta model</option>
+                <option value="CNN" {% if request.form.get('model') == 'CNN' %}selected{% endif %}>CNN Model</option>
+                <option value="Bayesian" {% if request.form.get('model') == 'Bayesian' %}selected{% endif %}>Bayesian Model</option>
+                <option value="BERT" {% if request.form.get('model') == 'BERT' %}selected{% endif %}>BERT Model</option>
+                <option value="Ensemble" {% if request.form.get('model') == 'Ensemble' %}selected{% endif %}>Ensemble Model</option>
+              </select>
+            </div>
+
+            <div class="d-grid">
+              <button type="submit" class="btn btn-primary" onclick="prepareFormSubmission()">Analyze Sentiment</button>
+            </div>
+          </form>
+        </div>
+
+        {% if result %}
+        <div class="card result-card bg-dark text-light mt-4" style="display:block;">
+          <div class="card-header">
+            <h5>Analysis Results</h5>
+          </div>
+          <div class="card-body">
+            <h6>Analyzed Text:</h6>
+            <div class="p-3 mb-3 bg-secondary rounded" id="analyzed-text-display">{{ request.form.get('text', '') }}</div>
+
+            <h6 class="mt-3">Prediction:</h6>
+            <h4>{{ result }}</h4>
+
+            <h6 class="mt-4">Sentiment Confidence:</h6>
+            <canvas id="sentimentBarChart" height="100"></canvas>
+          </div>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <!-- Scripts -->
+  <script>
+    // Initialize TinyMCE
+    tinymce.init({
+      selector: '#rich-editor',
+      height: 300,
+      menubar: false,
+      plugins: [
+        'advlist', 'autolink', 'lists', 'link', 'image', 'charmap', 'preview',
+        'anchor', 'searchreplace', 'visualblocks', 'code', 'fullscreen',
+        'insertdatetime', 'media', 'table', 'help', 'wordcount', 'emoticons'
+      ],
+      toolbar: 'undo redo | formatselect | ' +
+        'bold italic backcolor | alignleft aligncenter ' +
+        'alignright alignjustify | bullist numlist outdent indent | ' +
+        'removeformat | emoticons | help',
+      content_style: 'body { font-family: -apple-system, BlinkMacSystemFont, Segoe UI, Roboto, Helvetica, Arial, sans-serif; font-size: 16px; color: #f8f9fa; background-color: #374151; }',
+      skin: 'oxide-dark',
+      content_css: 'dark',
+      setup: function(editor) {
+        editor.on('change', function() {
+          // Update hidden field with editor content
+          document.getElementById('text').value = tinymce.get('rich-editor').getContent({format: 'text'});
+        });
+      }
+    });
+
+    function prepareFormSubmission() {
+      // Get the content from TinyMCE and store it in the hidden field
+      const plainText = tinymce.get('rich-editor').getContent({format: 'text'});
+      document.getElementById('text').value = plainText;
+    }
+
+    function handleImageUpload(input) {
+      if (input.files && input.files[0]) {
+        const reader = new FileReader();
+        reader.onload = function(e) {
+          document.getElementById('imagePreview').src = e.target.result;
+          document.getElementById('imagePreview').style.display = 'block';
+          document.getElementById('extractBtn').style.display = 'block';
+        };
+        reader.readAsDataURL(input.files[0]);
+      }
+    }
+
+    function extractText() {
+      const input = document.getElementById('imageUpload');
+      if (!input.files || !input.files[0]) return alert('Please upload an image first.');
+      document.getElementById('extractSpinner').style.display = 'inline-block';
+      const formData = new FormData();
+      formData.append('image', input.files[0]);
+      fetch('/extract-text', { method: 'POST', body: formData })
+        .then(response => response.json())
+        .then(data => {
+          document.getElementById('extractSpinner').style.display = 'none';
+          if (data.error) alert('Error: ' + data.error);
+          else {
+            // Set content in TinyMCE editor
+            tinymce.get('rich-editor').setContent(data.text);
+            // Also update the hidden field
+            document.getElementById('text').value = data.text;
+          }
+        })
+        .catch(error => {
+          document.getElementById('extractSpinner').style.display = 'none';
+          alert('Image Text Extraction Failed: ' + error);
+        });
+    }
+
+    function handlePdfUpload(input) {
+      if (input.files && input.files[0]) {
+        document.getElementById('extractPdfBtn').style.display = 'block';
+      }
+    }
+
+    function triggerPdfExtraction() {
+      const input = document.getElementById('pdfUpload');
+      if (!input.files || !input.files[0]) return alert('Please upload a PDF file.');
+      document.getElementById('extractPdfSpinner').style.display = 'inline-block';
+      const formData = new FormData();
+      formData.append('pdf', input.files[0]);
+      fetch('/extract-pdf-text', { method: 'POST', body: formData })
+        .then(response => response.json())
+        .then(data => {
+          document.getElementById('extractPdfSpinner').style.display = 'none';
+          if (data.error) alert('Error: ' + data.error);
+          else {
+            // Set content in TinyMCE editor
+            tinymce.get('rich-editor').setContent(data.text);
+            // Also update the hidden field
+            document.getElementById('text').value = data.text;
+          }
+        })
+        .catch(error => {
+          document.getElementById('extractPdfSpinner').style.display = 'none';
+          alert('PDF Text Extraction Failed: ' + error);
+        });
+    }
+
+    document.addEventListener('DOMContentLoaded', function () {
+      const ctx = document.getElementById('sentimentBarChart')?.getContext('2d');
+      {% if result %}
+      const sentimentScores = {
+        Positive: {{ details.scores.Positive|default(0)|round(4) }},
+        Neutral: {{ details.scores.Neutral|default(0)|round(4) }},
+        Negative: {{ details.scores.Negative|default(0)|round(4) }}
+      };
+      new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels: ['Positive', 'Neutral', 'Negative'],
+          datasets: [{
+            label: 'Sentiment Score',
+            data: [sentimentScores.Positive, sentimentScores.Neutral, sentimentScores.Negative],
+            backgroundColor: ['#10b981', '#f59e0b', '#ef4444'],
+            borderRadius: 6
+          }]
+        },
+        options: {
+          responsive: true,
+          scales: {
+            y: {
+              beginAtZero: true,
+              max: 1,
+              ticks: {
+                callback: value => `${(value * 100).toFixed(0)}%`
+              }
+            }
+          }
+        }
+      });
+
+      // Display analyzed text with formatting preserved if it was HTML
+      const analyzedTextDisplay = document.getElementById('analyzed-text-display');
+      if (analyzedTextDisplay) {
+        // Only display plain text for analysis results to avoid potential security issues
+        analyzedTextDisplay.textContent = '{{ request.form.get("text", "") }}';
+      }
+      {% endif %}
+    });
+  </script>
+</body>
+</html>
